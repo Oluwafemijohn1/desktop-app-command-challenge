@@ -18,37 +18,62 @@ import sun.misc.Unsafe
 @Composable
 @Preview
 fun App() {
-    var output by remember { mutableStateOf("Hello, World!") }
-    var pid by remember { mutableStateOf<Long>(0) }
+    var backendNote by remember { mutableStateOf("Start Server") }
+    var frontendNote by remember { mutableStateOf("Start client") }
+    var process: Process? by remember { mutableStateOf(null) }
+    var serverProcess: Process? by remember { mutableStateOf(null) }
 
     MaterialTheme {
         Column {
             Button(onClick = {
-                output = "Start, server"
-                try {
-                    val process = Runtime.getRuntime().exec("java -jar /Users/abiodunonitiju/Desktop/Projects/HibernateDemo/SprintBootJspDemo/target/SprintBootJspDemo-0.0.1-SNAPSHOT.war")
-                    pid = getUnixPid(process)
-                    println("Process ID: $pid")
-                    output = "Command executed successfully with pid: $pid"
-
-                } catch (ex: Exception) {
-                    output = "An error occurred: ${ex.message}"
-                    println("")
-                }
+               if(process == null) {
+                   try {
+                       process = Runtime.getRuntime().exec("java -jar /Users/abiodunonitiju/Desktop/Projects/HibernateDemo/SprintBootJspDemo/target/SprintBootJspDemo-0.0.1-SNAPSHOT.war")
+                       backendNote = "Server running with process id: ${getUnixPid(process!!)}..."
+                       println("Backend started....")
+                       println(process)
+                   } catch (ex: Exception) {
+                       backendNote = "An error occurred: ${ex.message}"
+                       println("Error Starting Backend serve")
+                   }
+               } else if(process != null){
+                   try {
+                       Runtime.getRuntime().exec("kill ${getUnixPid(process!!)}")
+                       backendNote = "Restart Server"
+                       println("Server Stopped...")
+                       process = null
+                   } catch (ex: Exception){
+                       backendNote = "An error occurred stopping Server: ${ex.message}"
+                       println("Frontend starting has error")
+                   }
+               }
             }) {
 
-                Text(output)
+                Text(backendNote)
             }
 
             Button(onClick = {
-                try {
-                    Runtime.getRuntime().exec("kill $pid")
-                    output = "Restart Server"
-                } catch (ex: Exception){
-                    output = "An error occurred: ${ex.message}"
+                if (serverProcess == null){
+                    println("Hello Frontend")
+                    try {
+                         serverProcess = ProcessBuilder()
+                            .command("serve", "-s", "/Users/abiodunonitiju/Desktop/build")
+                            .directory(File("/Users/abiodunonitiju/Desktop"))
+                            .start()
+
+                        println(process)
+
+                        frontendNote = "Frontend Server Started"
+                    } catch (ex: Exception){
+                        frontendNote = "An error occurred on frontend server: ${ex.message}"
+                    }
+                } else {
+                    serverProcess?.destroy()
+                    serverProcess = null
+                    frontendNote = "Frontend Server Stopped"
                 }
             }){
-                Text("Stop")
+                Text(frontendNote)
             }
         }
     }
