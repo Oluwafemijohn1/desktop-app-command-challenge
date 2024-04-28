@@ -1,101 +1,149 @@
 import androidx.compose.desktop.ui.tooling.preview.Preview
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
 import androidx.compose.material.Button
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
-import sun.misc.Unsafe
+import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 import java.io.File
-import java.lang.reflect.Field
+
+
+fun main() = application {
+    Window(
+        title = "Server Settings",
+        icon = painterResource("logo12.jpg"),
+        onCloseRequest = ::exitApplication) {
+        App()
+    }
+}
+
 
 @Composable
 @Preview
 fun App() {
-    var backendNote by remember { mutableStateOf("Start Server") }
-    var frontendNote by remember { mutableStateOf("Start client") }
-    var process: Process? by remember { mutableStateOf(null) }
-    var serverProcess: Process? by remember { mutableStateOf(null) }
+    var backendNote = remember { mutableStateOf("Start Server") }
+    var frontendNote = remember { mutableStateOf("Start client") }
+    var process = remember { mutableStateOf<Process?>(null) }
+    var serverProcess = remember { mutableStateOf<Process?>(null) }
 
     MaterialTheme {
-        Column {
-            Button(onClick = {
-               if(process == null) {
-                   try {
-                       process = Runtime.getRuntime().exec("java -jar /Users/abiodunonitiju/Desktop/Projects/HibernateDemo/SprintBootJspDemo/target/SprintBootJspDemo-0.0.1-SNAPSHOT.war")
-                       backendNote = "Server running with process id: ${getUnixPid(process!!)}..."
-                       println("Backend started....")
-                       println(process)
-                   } catch (ex: Exception) {
-                       backendNote = "An error occurred: ${ex.message}"
-                       println("Error Starting Backend serve")
-                   }
-               } else {
-                   try {
-                       Runtime.getRuntime().exec("kill ${getUnixPid(process!!)}")
-                       backendNote = "Restart Server"
-                       println("Server Stopped...")
-                       process = null
-                   } catch (ex: Exception){
-                       backendNote = "An error occurred stopping Server: ${ex.message}"
-                       println("Frontend starting has error")
-                   }
-               }
-            }) {
-
-                Text(backendNote)
-            }
-
-            Button(onClick = {
-                if (serverProcess == null){
-                    println("Hello Frontend")
-                    try {
-                         serverProcess = ProcessBuilder()
-                            .command("serve", "-s", "/Users/abiodunonitiju/Desktop/build")
-                            .directory(File("/Users/abiodunonitiju/Desktop"))
-                            .start()
-
-                        println(process)
-
-                        frontendNote = "Frontend Server Started"
-                    } catch (ex: Exception){
-                        frontendNote = "An error occurred on frontend server: ${ex.message}"
+        Box(
+            modifier = Modifier.fillMaxSize()
+                .background(Color.Blue)
+        ) {
+            val backgroundImage: Painter = painterResource("desktop_bg.jpg")
+            Image(
+                painter = backgroundImage,
+                contentDescription = null, // Content description is not needed for background image
+                modifier = Modifier.fillMaxSize()
+                    .matchParentSize(),
+                contentScale = ContentScale.FillBounds
+            )
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                ServerButton(
+                    text = backendNote.value,
+                    onClick = {
+                        if (process.value == null) {
+                            startBackendServer(backendNote, process)
+                        } else {
+                            stopProcess(process, backendNote, true)
+                        }
                     }
-                } else {
-                    serverProcess?.destroy()
-                    serverProcess = null
-                    frontendNote = "Frontend Server Stopped"
-                }
-            }){
-                Text(frontendNote)
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                ServerButton(
+                    text = frontendNote.value,
+                    onClick = {
+                        if (serverProcess.value == null) {
+                            startFrontendServer(frontendNote, serverProcess)
+                        } else {
+                            stopProcess(serverProcess, frontendNote, false)
+                        }
+                    }
+                )
             }
         }
     }
 }
 
-
-
-fun getUnixPid(process: Process): Long {
-    val unsafe: Unsafe
-    try {
-        val field: Field = Unsafe::class.java.getDeclaredField("theUnsafe")
-        field.isAccessible = true
-        unsafe = field.get(null) as Unsafe
-    } catch (e: Exception) {
-        throw IllegalStateException("Unable to access Unsafe", e)
-    }
-
-    try {
-        val pidField: Field = process.javaClass.getDeclaredField("pid")
-        return unsafe.getLong(process, unsafe.objectFieldOffset(pidField))
-    } catch (e: Exception) {
-        throw IllegalStateException("Unable to get PID", e)
+@Composable
+fun ServerButton(text: String, onClick: () -> Unit) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier.widthIn(min = 200.dp)
+    ) {
+        Text(text)
     }
 }
 
-fun main() = application {
-    Window(onCloseRequest = ::exitApplication) {
-        App()
+
+@OptIn(DelicateCoroutinesApi::class)
+fun startBackendServer(backendNote: MutableState<String>, process: MutableState<Process?>) {
+    GlobalScope.launch(Dispatchers.IO) {
+        try {
+            process.value = Runtime.getRuntime().exec("java -jar /Users/abiodunonitiju/Desktop/Projects/HibernateDemo/SprintBootJspDemo/target/SprintBootJspDemo-0.0.1-SNAPSHOT.war")
+            println("Backend server started with PID: ${process.value!!.pid()}")
+            backendNote.value = "Server running with process id: ${process.value!!.pid()}..."
+            println("Backend started....")
+            println(process.value)
+        } catch (ex: Exception) {
+            println("Error starting backend server: ${ex.message}")
+            backendNote.value = "Error starting backend server: ${ex.message}"
+            // Handle error or update UI state
+        }
     }
 }
+
+@OptIn(DelicateCoroutinesApi::class)
+fun startFrontendServer(frontendNote: MutableState<String>, serverProcess: MutableState<Process?>) {
+    GlobalScope.launch(Dispatchers.IO) {
+        try {
+             serverProcess.value = ProcessBuilder()
+                .command("serve", "-s", "/Users/abiodunonitiju/Desktop/build")
+                .directory(File("/Users/abiodunonitiju"))
+                .start()
+
+            frontendNote.value = "Frontend Server is running with id: ${serverProcess.value!!.pid()}... Click again to stop it"
+            println("Frontend server started with PID: ${serverProcess.value!!.pid()}")
+            // Update UI state if necessary
+        } catch (ex: Exception) {
+            println("Error starting frontend server: ${ex.message}")
+            frontendNote.value = "Error starting frontend server: ${ex.message}"
+            // Handle error or update UI state
+        }
+    }
+}
+
+fun stopProcess(process: MutableState<Process?>, note: MutableState<String>, isBackend: Boolean) {
+    process.value!!.destroy()
+    println("Process stopped")
+    process.value = null
+    if (isBackend){
+        note.value = "Server Stopped, Click to restart."
+    } else{
+        note.value = "Client Stopped, Click to restart."
+    }
+}
+
+
+
